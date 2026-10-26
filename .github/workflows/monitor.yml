@@ -1,0 +1,46 @@
+name: Wuhan B1B2 Bark alerts
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Use status to send a current observation; monitor only alerts on changes.'
+        type: choice
+        default: monitor
+        options: [monitor, status]
+permissions:
+  contents: read
+concurrency:
+  group: wuhan-b1b2-monitor
+  cancel-in-progress: false
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: wuhan-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: wuhan-state-
+      - name: Read public summary and send Bark notification
+        env:
+          VISA_BARK_ENDPOINT: ${{ secrets.VISA_BARK_ENDPOINT }}
+          MODE: ${{ inputs.mode }}
+          PYTHONUTF8: '1'
+        run: |
+          if [ "$MODE" = status ]; then
+            python watcher.py --status
+          else
+            python watcher.py
+          fi
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: state.json
+          key: wuhan-state-${{ github.run_id }}-${{ github.run_attempt }}
